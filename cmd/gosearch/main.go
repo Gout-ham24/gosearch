@@ -1,30 +1,31 @@
 package main
 
 import (
+	"context"
 	"fmt"
 
-	"gosearch/crawler"
-	"gosearch/indexer"
+	"gosearch/storage"
 )
 
 func main() {
-	// Step 1: Crawl a few pages
-	c := crawler.NewCrawler("https://en.wikipedia.org/wiki/Go_(programming_language)", 5)
-	pages := c.Run()
-
-	// Step 2: Feed crawled pages into the index
-	idx := indexer.NewIndex()
-	for _, page := range pages {
-		idx.Add(page.URL, page.Text)
+	pool, err := storage.Connect()
+	if err != nil {
+		fmt.Println("Connection failed:", err)
+		return
 	}
-	fmt.Println("\nIndexed", len(pages), "pages")
+	defer pool.Close()
 
-	// Step 3: Search for something
+	ctx := context.Background()
+
 	query := "go programming"
-	results := idx.Search(query)
+	results, err := storage.SearchDocuments(ctx, pool, query)
+	if err != nil {
+		fmt.Println("Search failed:", err)
+		return
+	}
 
-	fmt.Printf("\n--- Search results for %q ---\n", query)
-	for _, result := range results {
-		fmt.Printf("%.4f  %s\n", result.Score, result.Doc.URL)
+	fmt.Printf("--- Search results for %q ---\n", query)
+	for _, r := range results {
+		fmt.Printf("%.4f  %s\n", r.Score, r.URL)
 	}
 }
