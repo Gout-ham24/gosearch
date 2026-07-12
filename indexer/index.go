@@ -1,5 +1,10 @@
 package indexer
 
+import (
+	"math"
+	"sort"
+)
+
 // Document represents one crawled page stored in the index.
 type Document struct {
 	ID   int
@@ -7,10 +12,16 @@ type Document struct {
 	Text string
 }
 
-// Index is an inverted index: maps each word to the list of document IDs containing it.
+// posting stores how many times a word appears in a specific document.
+type posting struct {
+	docID int
+	freq  int
+}
+
+// Index is an inverted index: maps each word to postings (doc ID + frequency).
 type Index struct {
 	documents map[int]*Document
-	postings  map[string][]int
+	postings  map[string][]posting
 	nextID    int
 }
 
@@ -18,13 +29,12 @@ type Index struct {
 func NewIndex() *Index {
 	return &Index{
 		documents: make(map[int]*Document),
-		postings:  make(map[string][]int),
+		postings:  make(map[string][]posting),
 		nextID:    0,
 	}
 }
 
 // Add tokenizes the given text and adds it to the index under a new document ID.
-// Returns the assigned document ID.
 func (idx *Index) Add(url string, text string) int {
 	id := idx.nextID
 	idx.nextID++
@@ -32,50 +42,66 @@ func (idx *Index) Add(url string, text string) int {
 	idx.documents[id] = &Document{ID: id, URL: url, Text: text}
 
 	tokens := Tokenize(text)
-	seen := make(map[string]bool) // avoid adding the same doc ID twice for repeated words
-
+	counts := make(map[string]int)
 	for _, word := range tokens {
-		if seen[word] {
-			continue
-		}
-		seen[word] = true
-		idx.postings[word] = append(idx.postings[word], id)
+		counts[word]++
+	}
+
+	for word, freq := range counts {
+		idx.postings[word] = append(idx.postings[word], posting{docID: id, freq: freq})
 	}
 
 	return id
 }
 
-// Search returns documents that contain ALL the given query words.
-func (idx *Index) Search(query string) []*Document {
+// ScoredDocument pairs a Document with its relevance score for a query.
+type ScoredDocument struct {
+	Doc   *Document
+	Score float64
+}
+
+// Search returns documents containing ALL query words, ranked by TF-IDF score (best match first).
+func (idx *Index) Search(query string) []ScoredDocument {
 	tokens := Tokenize(query)
 	if len(tokens) == 0 {
 		return nil
 	}
 
-	// Start with the postings list of the first word
-	matchIDs := make(map[int]bool)
-	for _, id := range idx.postings[tokens[0]] {
-		matchIDs[id] = true
-	}
+	totalDocs := len(idx.documents)
 
-	// For each remaining word, keep only IDs that also appear in ITS postings list
-	for _, word := range tokens[1:] {
-		wordIDs := make(map[int]bool)
-		for _, id := range idx.postings[word] {
-			wordIDs[id] = true
+	// Build docID -> matched-word-count, and docID -> score, only for docs matching ALL words
+	matchCount := make(map[int]int)
+	scores := make(map[int]float64)
+
+	for _, word := range tokens {
+		wordPostings := idx.postings[word]
+		df := len(wordPostings) // document frequency: how many docs contain this word at all
+		if df == 0 {
+			continue
 		}
+		idf := math.Log(float64(totalDocs) / float64(df))
 
-		for id := range matchIDs {
-			if !wordIDs[id] {
-				delete(matchIDs, id)
-			}
+		for _, p := range wordPostings {
+			tf := float64(p.freq)
+			scores[p.docID] += tf * idf
+			matchCount[p.docID]++
 		}
 	}
 
-	var results []*Document
-	for id := range matchIDs {
-		results = append(results, idx.documents[id])
+	var results []ScoredDocument
+	for docID, count := range matchCount {
+		if count == len(tokens) { // must match ALL query words (AND logic)
+			results = append(results, ScoredDocument{
+				Doc:   idx.documents[docID],
+				Score: scores[docID],
+			})
+		}
 	}
+
+	// Sort by score descending — best matches first
+	sort.Slice(results, func(i, j int) bool {
+		return results[i].Score > results[j].Score
+	})
 
 	return results
 }

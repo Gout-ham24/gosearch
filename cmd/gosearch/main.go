@@ -24,7 +24,7 @@ func main() {
 	results := idx.Search(query)
 
 	fmt.Printf("\n--- Search results for %q ---\n", query)
-	for _, doc := range results {
-		fmt.Println(doc.URL)
+	for _, result := range results {
+		fmt.Printf("%.4f  %s\n", result.Score, result.Doc.URL)
 	}
 }
