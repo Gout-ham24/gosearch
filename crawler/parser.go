@@ -8,6 +8,7 @@ import (
 )
 
 type ParsedPage struct {
+	URL   string
 	Text  string
 	Links []string
 }
@@ -23,7 +24,7 @@ func Parse(rawHTML string, baseURL string) (*ParsedPage, error) {
 		return nil, err
 	}
 
-	page := &ParsedPage{}
+	page := &ParsedPage{URL: baseURL}
 	var textBuilder strings.Builder
 
 	var walk func(*html.Node)
