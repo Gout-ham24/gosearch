@@ -45,16 +45,35 @@ func (idx *Index) Add(url string, text string) int {
 	return id
 }
 
-// Search returns the documents that contain the given word.
-func (idx *Index) Search(word string) []*Document {
-	tokens := Tokenize(word) // normalize the query the same way we normalize indexed text
+// Search returns documents that contain ALL the given query words.
+func (idx *Index) Search(query string) []*Document {
+	tokens := Tokenize(query)
 	if len(tokens) == 0 {
 		return nil
 	}
 
-	ids := idx.postings[tokens[0]]
+	// Start with the postings list of the first word
+	matchIDs := make(map[int]bool)
+	for _, id := range idx.postings[tokens[0]] {
+		matchIDs[id] = true
+	}
+
+	// For each remaining word, keep only IDs that also appear in ITS postings list
+	for _, word := range tokens[1:] {
+		wordIDs := make(map[int]bool)
+		for _, id := range idx.postings[word] {
+			wordIDs[id] = true
+		}
+
+		for id := range matchIDs {
+			if !wordIDs[id] {
+				delete(matchIDs, id)
+			}
+		}
+	}
+
 	var results []*Document
-	for _, id := range ids {
+	for id := range matchIDs {
 		results = append(results, idx.documents[id])
 	}
 

@@ -20,7 +20,7 @@ func main() {
 	fmt.Println("\nIndexed", len(pages), "pages")
 
 	// Step 3: Search for something
-	query := "programming"
+	query := "go programming"
 	results := idx.Search(query)
 
 	fmt.Printf("\n--- Search results for %q ---\n", query)
