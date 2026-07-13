@@ -1,0 +1,39 @@
+package api
+
+import (
+	"context"
+	"encoding/json"
+	"net/http"
+
+	"gosearch/storage"
+
+	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+// Server holds shared dependencies for HTTP handlers.
+type Server struct {
+	Pool *pgxpool.Pool
+}
+
+// NewServer creates a Server with the given database pool.
+func NewServer(pool *pgxpool.Pool) *Server {
+	return &Server{Pool: pool}
+}
+
+// SearchHandler handles GET /search?q=<query> and returns JSON results.
+func (s *Server) SearchHandler(w http.ResponseWriter, r *http.Request) {
+	query := r.URL.Query().Get("q")
+	if query == "" {
+		http.Error(w, `{"error": "missing query parameter 'q'"}`, http.StatusBadRequest)
+		return
+	}
+
+	results, err := storage.SearchDocuments(context.Background(), s.Pool, query)
+	if err != nil {
+		http.Error(w, `{"error": "search failed"}`, http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(results)
+}

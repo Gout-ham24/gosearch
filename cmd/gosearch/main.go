@@ -1,9 +1,11 @@
 package main
 
 import (
-	"context"
 	"fmt"
+	"log"
+	"net/http"
 
+	"gosearch/api"
 	"gosearch/storage"
 )
 
@@ -15,17 +17,10 @@ func main() {
 	}
 	defer pool.Close()
 
-	ctx := context.Background()
+	server := api.NewServer(pool)
 
-	query := "go programming"
-	results, err := storage.SearchDocuments(ctx, pool, query)
-	if err != nil {
-		fmt.Println("Search failed:", err)
-		return
-	}
+	http.HandleFunc("/search", server.SearchHandler)
 
-	fmt.Printf("--- Search results for %q ---\n", query)
-	for _, r := range results {
-		fmt.Printf("%.4f  %s\n", r.Score, r.URL)
-	}
+	fmt.Println("GoSearch API running at http://localhost:8080")
+	log.Fatal(http.ListenAndServe(":8080", nil))
 }
