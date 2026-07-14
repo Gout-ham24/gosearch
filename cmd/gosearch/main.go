@@ -20,6 +20,7 @@ func main() {
 	server := api.NewServer(pool)
 
 	http.HandleFunc("/search", api.EnableCORS(server.SearchHandler))
+	http.HandleFunc("/crawl", api.EnableCORS(server.CrawlHandler))
 
 	fmt.Println("GoSearch API running at http://localhost:8080")
 	log.Fatal(http.ListenAndServe(":8080", nil))

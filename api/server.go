@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"gosearch/crawler"
 	"gosearch/storage"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -52,4 +53,49 @@ func EnableCORS(next http.HandlerFunc) http.HandlerFunc {
 
 		next(w, r)
 	}
+}
+
+// CrawlRequest is the expected JSON body for POST /crawl
+type CrawlRequest struct {
+	SeedURL  string `json:"seed_url"`
+	MaxPages int    `json:"max_pages"`
+}
+
+// CrawlHandler handles POST /crawl - starts a new crawl and saves results to the database.
+func (s *Server) CrawlHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, `{"error": "only POST method allowed"}`, http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req CrawlRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, `{"error": "invalid request body"}`, http.StatusBadRequest)
+		return
+	}
+
+	if req.SeedURL == "" {
+		http.Error(w, `{"error": "seed_url is required"}`, http.StatusBadRequest)
+		return
+	}
+	if req.MaxPages <= 0 {
+		req.MaxPages = 5 // sensible default
+	}
+
+	c := crawler.NewCrawler(req.SeedURL, req.MaxPages)
+	pages := c.Run()
+
+	ctx := context.Background()
+	saved := 0
+	for _, page := range pages {
+		if err := storage.SaveDocument(ctx, s.Pool, page.URL, page.Text); err == nil {
+			saved++
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]int{
+		"pages_crawled": len(pages),
+		"pages_saved":   saved,
+	})
 }
