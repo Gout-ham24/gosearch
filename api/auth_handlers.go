@@ -100,3 +100,24 @@ func (s *Server) LoginHandler(w http.ResponseWriter, r *http.Request) {
 		Email:        user.Email,
 	})
 }
+
+// MeHandler handles GET /auth/me - returns the currently authenticated user's info.
+func (s *Server) MeHandler(w http.ResponseWriter, r *http.Request) {
+	userID, ok := GetUserID(r)
+	if !ok {
+		http.Error(w, `{"error": "unauthorized"}`, http.StatusUnauthorized)
+		return
+	}
+
+	user, err := storage.GetUserByID(context.Background(), s.Pool, userID)
+	if err != nil || user == nil {
+		http.Error(w, `{"error": "user not found"}`, http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"id":    user.ID,
+		"email": user.Email,
+	})
+}

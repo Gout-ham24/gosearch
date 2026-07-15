@@ -24,6 +24,7 @@ func main() {
 	http.HandleFunc("/crawl", api.EnableCORS(server.CrawlHandler))
 	http.HandleFunc("/auth/signup", api.EnableCORS(server.SignupHandler))
 	http.HandleFunc("/auth/login", api.EnableCORS(server.LoginHandler))
+	http.HandleFunc("/auth/me", api.EnableCORS(api.AuthMiddleware(server.MeHandler)))
 
 	port := os.Getenv("PORT")
 	if port == "" {

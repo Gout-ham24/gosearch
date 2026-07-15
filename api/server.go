@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strings"
 
+	"gosearch/auth"
 	"gosearch/crawler"
 	"gosearch/storage"
 
@@ -98,4 +100,36 @@ func (s *Server) CrawlHandler(w http.ResponseWriter, r *http.Request) {
 		"pages_crawled": len(pages),
 		"pages_saved":   saved,
 	})
+}
+
+// AuthMiddleware verifies the JWT in the Authorization header before allowing access.
+// If valid, it stores the user ID in the request context for the handler to use.
+func AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		authHeader := r.Header.Get("Authorization")
+		if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
+			http.Error(w, `{"error": "missing or invalid authorization header"}`, http.StatusUnauthorized)
+			return
+		}
+
+		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
+		claims, err := auth.ValidateAccessToken(tokenString)
+		if err != nil || claims == nil {
+			http.Error(w, `{"error": "invalid or expired token"}`, http.StatusUnauthorized)
+			return
+		}
+
+		ctx := context.WithValue(r.Context(), userIDKey, claims.UserID)
+		next(w, r.WithContext(ctx))
+	}
+}
+
+type contextKey string
+
+const userIDKey contextKey = "userID"
+
+// GetUserID extracts the authenticated user's ID from the request context.
+func GetUserID(r *http.Request) (int, bool) {
+	id, ok := r.Context().Value(userIDKey).(int)
+	return id, ok
 }
