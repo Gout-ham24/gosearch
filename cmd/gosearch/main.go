@@ -25,6 +25,10 @@ func main() {
 	http.HandleFunc("/auth/signup", api.EnableCORS(server.SignupHandler))
 	http.HandleFunc("/auth/login", api.EnableCORS(server.LoginHandler))
 	http.HandleFunc("/auth/me", api.EnableCORS(api.AuthMiddleware(server.MeHandler)))
+	http.HandleFunc("/auth/logout", api.EnableCORS(server.LogoutHandler))
+	http.HandleFunc("/auth/logout-all", api.EnableCORS(api.AuthMiddleware(server.LogoutAllHandler)))
+	http.HandleFunc("/account/password", api.EnableCORS(api.AuthMiddleware(server.ChangePasswordHandler)))
+	http.HandleFunc("/account", api.EnableCORS(api.AuthMiddleware(server.DeleteAccountHandler)))
 
 	port := os.Getenv("PORT")
 	if port == "" {
